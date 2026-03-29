@@ -1,0 +1,558 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>E-Absensi SMK IBU KARTINI SEMARANG</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/html5-qrcode/2.3.8/html5-qrcode.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;600;700&display=swap" rel="stylesheet">
+    <style>
+        body { font-family: 'Inter', sans-serif; }
+        #reader { width: 100% !important; border: none !important; }
+        #reader video { border-radius: 1rem; object-fit: cover; }
+        .animate-bounce-in { animation: bounceIn 0.5s ease-out; }
+        @keyframes bounceIn {
+            0% { transform: scale(0.9); opacity: 0; }
+            70% { transform: scale(1.05); }
+            100% { transform: scale(1); opacity: 1; }
+        }
+        @media print {
+            header, nav, .tab-content:not(#tab-generator), .no-print { display: none !important; }
+            #tab-generator, #qr-result { display: block !important; margin: 0; padding: 0; }
+            body { background: white; }
+            #qr-result { border: none; padding-top: 0; }
+        }
+    </style>
+</head>
+<body class="bg-gray-50 min-h-screen text-gray-800">
+
+    <!-- Header -->
+    <header class="bg-blue-700 text-white p-6 shadow-lg sticky top-0 z-50 no-print">
+        <div class="container mx-auto flex flex-col md:flex-row justify-between items-center">
+            <div class="flex items-center space-x-4">
+                <div class="bg-white p-1 rounded-lg">
+                    <img src="https://iili.io/fv1Iz6G.png" alt="Logo" class="w-12 h-12 object-contain" onerror="this.src='https://via.placeholder.com/50?text=IK'">
+                </div>
+                <div>
+                    <h1 class="text-xl font-bold uppercase tracking-wider">SMK IBU KARTINI SEMARANG</h1>
+                    <p class="text-xs opacity-80">E-Absensi Digital - Semarang</p>
+                </div>
+            </div>
+            <nav class="mt-4 md:mt-0 flex flex-wrap justify-center gap-2">
+                <button onclick="switchTab('scan')" class="px-4 py-2 text-sm rounded-lg bg-blue-800 hover:bg-blue-600 transition">Scan QR</button>
+                <button onclick="switchTab('admin')" class="px-4 py-2 text-sm rounded-lg bg-blue-800 hover:bg-blue-600 transition">Laporan</button>
+                <button onclick="switchTab('settings')" class="px-4 py-2 text-sm rounded-lg bg-blue-800 hover:bg-blue-600 transition">Pengaturan</button>
+                <button onclick="switchTab('generator')" class="px-4 py-2 text-sm rounded-lg bg-blue-800 hover:bg-blue-600 transition">Buat QR</button>
+            </nav>
+        </div>
+    </header>
+
+    <main class="container mx-auto p-4 md:p-8">
+        
+        <!-- Tab: Scan QR -->
+        <section id="tab-scan" class="tab-content max-w-xl mx-auto">
+            <div class="bg-white rounded-2xl shadow-xl overflow-hidden border-b-8 border-blue-600">
+                <div class="p-6 bg-blue-600 text-white text-center">
+                    <h2 class="text-xl font-semibold">Pindai Kode QR</h2>
+                    <p class="text-sm opacity-90" id="current-day-info">Memuat hari operasional...</p>
+                </div>
+                <div class="p-4">
+                    <div id="reader" class="bg-black rounded-xl overflow-hidden border-4 border-dashed border-gray-200"></div>
+                </div>
+                <div id="scan-result" class="p-6 hidden text-center border-t border-gray-100 bg-gray-50 animate-bounce-in">
+                    <div class="mb-4">
+                        <span id="status-badge" class="px-3 py-1 rounded-full text-xs font-bold uppercase"></span>
+                    </div>
+                    <h3 id="student-name" class="text-2xl font-bold text-gray-800"></h3>
+                    <p id="student-info" class="text-gray-500 mb-1"></p>
+                    <p id="student-teacher-info" class="text-blue-600 font-semibold mb-4"></p>
+                    <p id="timestamp" class="text-sm font-mono bg-white border px-3 py-2 rounded-lg inline-block shadow-sm"></p>
+                </div>
+            </div>
+            <p class="text-center text-xs text-gray-400 mt-4 italic">Pastikan volume perangkat aktif untuk mendengar konfirmasi suara.</p>
+        </section>
+
+        <!-- Tab: Laporan -->
+        <section id="tab-admin" class="tab-content hidden">
+            <!-- Statistik -->
+            <div class="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-4 mb-6">
+                <div class="bg-white p-4 rounded-xl shadow-sm border-l-4 border-blue-500">
+                    <p class="text-gray-500 text-[10px] uppercase font-bold">Total</p>
+                    <h3 id="stat-total" class="text-xl font-bold">0</h3>
+                </div>
+                <div class="bg-white p-4 rounded-xl shadow-sm border-l-4 border-green-500">
+                    <p class="text-gray-500 text-[10px] uppercase font-bold">Hadir</p>
+                    <h3 id="stat-ontime" class="text-xl font-bold text-green-600">0</h3>
+                </div>
+                <div class="bg-white p-4 rounded-xl shadow-sm border-l-4 border-red-500">
+                    <p class="text-gray-500 text-[10px] uppercase font-bold">Terlambat</p>
+                    <h3 id="stat-late" class="text-xl font-bold text-red-600">0</h3>
+                </div>
+                <div class="bg-white p-4 rounded-xl shadow-sm border-l-4 border-yellow-500">
+                    <p class="text-gray-500 text-[10px] uppercase font-bold">Sakit</p>
+                    <h3 id="stat-sick" class="text-xl font-bold text-yellow-600">0</h3>
+                </div>
+                <div class="bg-white p-4 rounded-xl shadow-sm border-l-4 border-purple-500">
+                    <p class="text-gray-500 text-[10px] uppercase font-bold">Izin</p>
+                    <h3 id="stat-perm" class="text-xl font-bold text-purple-600">0</h3>
+                </div>
+                <div class="bg-white p-4 rounded-xl shadow-sm border-l-4 border-gray-400">
+                    <p class="text-gray-500 text-[10px] uppercase font-bold">Alfa</p>
+                    <h3 id="stat-alfa" class="text-xl font-bold text-gray-600">0</h3>
+                </div>
+            </div>
+
+            <!-- Kontrol -->
+            <div class="flex flex-wrap gap-2 mb-6">
+                <button onclick="openManualInput()" class="bg-indigo-600 text-white px-4 py-2 rounded-lg font-bold hover:bg-indigo-700 transition text-sm">
+                    + Input Manual (S/I/A)
+                </button>
+                <button onclick="exportToExcel()" class="bg-green-600 text-white px-4 py-2 rounded-lg font-bold hover:bg-green-700 transition text-sm">
+                    Ekspor Excel
+                </button>
+                <button onclick="generateWARecap()" class="bg-blue-600 text-white px-4 py-2 rounded-lg font-bold hover:bg-blue-700 transition text-sm">
+                    Kirim Rekap WA
+                </button>
+            </div>
+
+            <!-- Modal Input Manual -->
+            <div id="modal-manual" class="fixed inset-0 bg-black bg-opacity-50 z-[60] hidden flex items-center justify-center p-4">
+                <div class="bg-white w-full max-w-md rounded-2xl shadow-2xl p-6">
+                    <h3 class="text-xl font-bold mb-4">Input Absensi Manual</h3>
+                    <div class="space-y-3">
+                        <input type="text" id="man-name" placeholder="Nama Siswa" class="w-full p-2 border rounded-lg">
+                        <input type="text" id="man-teacher" placeholder="Wali Kelas" class="w-full p-2 border rounded-lg">
+                        <select id="man-status" class="w-full p-2 border rounded-lg">
+                            <option value="Sakit">Sakit</option>
+                            <option value="Izin">Izin</option>
+                            <option value="Alfa">Alfa</option>
+                        </select>
+                        <div class="flex gap-2 pt-4">
+                            <button onclick="closeManualInput()" class="flex-1 py-2 bg-gray-200 rounded-lg">Batal</button>
+                            <button onclick="submitManualInput()" class="flex-1 py-2 bg-blue-600 text-white rounded-lg font-bold">Simpan</button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <div id="wa-recap-section" class="mb-6 hidden animate-bounce-in">
+                <div class="bg-blue-50 border-2 border-blue-200 p-4 rounded-xl">
+                    <h4 class="font-bold text-blue-800 mb-2 flex items-center gap-2">Pilih Rekap Berdasarkan Wali Kelas:</h4>
+                    <div id="wa-buttons-container" class="flex flex-wrap gap-2"></div>
+                </div>
+            </div>
+
+            <div class="bg-white rounded-xl shadow-sm overflow-hidden">
+                <div class="p-6 border-b border-gray-100 flex justify-between items-center">
+                    <h2 class="text-xl font-bold">Log Absensi</h2>
+                    <button onclick="clearLogs()" class="text-red-500 text-sm hover:underline">Hapus Semua Data</button>
+                </div>
+                <div class="overflow-x-auto">
+                    <table class="w-full text-left">
+                        <thead class="bg-gray-50 text-gray-600 text-sm uppercase">
+                            <tr>
+                                <th class="px-6 py-4">Waktu</th>
+                                <th class="px-6 py-4">Nama Siswa</th>
+                                <th class="px-6 py-4">Wali Kelas</th>
+                                <th class="px-6 py-4">Status</th>
+                                <th class="px-6 py-4">Aksi</th>
+                            </tr>
+                        </thead>
+                        <tbody id="log-table" class="divide-y divide-gray-100 text-sm"></tbody>
+                    </table>
+                </div>
+            </div>
+        </section>
+
+        <!-- Tab: Pengaturan -->
+        <section id="tab-settings" class="tab-content hidden max-w-2xl mx-auto">
+            <div class="bg-white p-8 rounded-2xl shadow-xl">
+                <h2 class="text-2xl font-bold mb-6">Konfigurasi Sistem</h2>
+                <div class="space-y-6">
+                    <div>
+                        <label class="block text-sm font-semibold text-gray-700 mb-2">Batas Jam Masuk</label>
+                        <input type="time" id="set-limit-time" class="w-full p-3 border rounded-lg">
+                    </div>
+                    <div>
+                        <label class="block text-sm font-semibold text-gray-700 mb-2">Hari Operasional</label>
+                        <div class="grid grid-cols-2 sm:grid-cols-4 gap-2" id="days-container"></div>
+                    </div>
+                    <div class="pt-4 border-t">
+                        <button onclick="saveSettings()" class="w-full bg-blue-600 text-white py-3 rounded-lg font-bold">Simpan Perubahan</button>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <!-- Tab: Generator -->
+        <section id="tab-generator" class="tab-content hidden max-w-lg mx-auto">
+            <div class="bg-white p-8 rounded-2xl shadow-xl">
+                <h2 class="text-2xl font-bold mb-6 text-center no-print">Cetak QR Siswa</h2>
+                <div class="space-y-4 no-print">
+                    <input type="text" id="gen-name" placeholder="Nama Lengkap" class="w-full p-3 border rounded-lg">
+                    <input type="text" id="gen-teacher" placeholder="Nama Wali Kelas" class="w-full p-3 border rounded-lg">
+                    <input type="text" id="gen-id" placeholder="NIPD" class="w-full p-3 border rounded-lg">
+                    <select id="gen-major" class="w-full p-3 border rounded-lg">
+                        <option value="RPL">RPL</option>
+                        <option value="Kuliner">Kuliner</option>
+                        <option value="DKV">DKV</option>
+                        <option value="BUSANA">BUSANA</option>
+                    </select>
+                    <button onclick="generateQR()" class="w-full bg-blue-600 text-white py-3 rounded-lg font-bold">Hasilkan QR</button>
+                </div>
+                <div id="qr-result" class="mt-8 flex flex-col items-center hidden border-t pt-8">
+                    <div id="qrcode" class="p-4 bg-white border rounded-lg"></div>
+                    <p class="mt-4 font-bold text-lg" id="qr-display-name"></p>
+                    <p class="text-blue-600 font-semibold" id="qr-display-teacher-major"></p>
+                    <button onclick="window.print()" class="no-print mt-4 text-blue-600 font-semibold hover:underline">Cetak</button>
+                </div>
+            </div>
+        </section>
+
+    </main>
+
+    <!-- Notifikasi -->
+    <div id="notification" class="fixed bottom-10 left-1/2 -translate-x-1/2 px-6 py-3 rounded-full text-white font-bold shadow-2xl transition-all duration-300 opacity-0 pointer-events-none transform translate-y-4 z-[100]"></div>
+
+    <script>
+        let logs = JSON.parse(localStorage.getItem('absensi_logs_v4')) || [];
+        let config = JSON.parse(localStorage.getItem('absensi_config_v4')) || {
+            limitTime: "07:15",
+            workingDays: [1, 2, 3, 4, 5]
+        };
+        
+        let html5QrCode = null;
+        let isScannerRunning = false;
+        const dayNames = ["Minggu", "Senin", "Selasa", "Rabu", "Kamis", "Jumat", "Sabtu"];
+
+        function speak(text) {
+            if ('speechSynthesis' in window) {
+                window.speechSynthesis.cancel();
+                const msg = new SpeechSynthesisUtterance();
+                msg.text = text;
+                msg.lang = 'id-ID';
+                window.speechSynthesis.speak(msg);
+            }
+        }
+
+        function playBeep(frequency = 440, duration = 200) {
+            const context = new (window.AudioContext || window.webkitAudioContext)();
+            const oscillator = context.createOscillator();
+            const gain = context.createGain();
+            oscillator.type = 'sine';
+            oscillator.frequency.setValueAtTime(frequency, context.currentTime);
+            gain.gain.setValueAtTime(0.1, context.currentTime);
+            oscillator.connect(gain);
+            gain.connect(context.destination);
+            oscillator.start();
+            oscillator.stop(context.currentTime + duration / 1000);
+        }
+
+        document.addEventListener('DOMContentLoaded', () => {
+            initScanner();
+            initSettingsForm();
+            updateAdminStats();
+            renderLogs();
+            updateDayInfo();
+        });
+
+        async function switchTab(tabId) {
+            document.querySelectorAll('.tab-content').forEach(el => el.classList.add('hidden'));
+            if (isScannerRunning && html5QrCode) {
+                try {
+                    isScannerRunning = false;
+                    await html5QrCode.stop();
+                } catch (err) {}
+            }
+            document.getElementById(`tab-${tabId}`).classList.remove('hidden');
+            if (tabId === 'scan') initScanner();
+        }
+
+        function initScanner() {
+            if (!document.getElementById("reader")) return;
+            html5QrCode = new Html5Qrcode("reader");
+            html5QrCode.start({ facingMode: "environment" }, { fps: 15, qrbox: 280 }, onScanSuccess)
+                .then(() => isScannerRunning = true)
+                .catch(() => showNotification("Kamera tidak aktif.", "bg-red-600"));
+        }
+
+        function onScanSuccess(decodedText) {
+            const todayIdx = new Date().getDay();
+            if (!config.workingDays.includes(todayIdx)) {
+                speak("Maaf, hari ini libur");
+                showNotification("Hari ini libur operasional.", "bg-gray-700");
+                return;
+            }
+
+            try {
+                const data = JSON.parse(decodedText);
+                if (data.id && data.name) {
+                    const now = new Date();
+                    const dateStr = now.toLocaleDateString('id-ID', { year: 'numeric', month: 'long', day: 'numeric' });
+                    const isAlreadyPresent = logs.some(log => log.id === data.id && log.timestamp.includes(dateStr));
+
+                    if (isAlreadyPresent) {
+                        playBeep(300, 500);
+                        speak("Anda sudah absen hari ini");
+                        showNotification("SUDAH ABSEN HARI INI", "bg-yellow-500");
+                        html5QrCode.pause();
+                        setTimeout(() => { if (isScannerRunning) html5QrCode.resume(); }, 3000);
+                        return;
+                    }
+
+                    processAbsensi(data);
+                    html5QrCode.pause();
+                    setTimeout(() => {
+                        if (isScannerRunning) {
+                            html5QrCode.resume();
+                            document.getElementById('scan-result').classList.add('hidden');
+                        }
+                    }, 4000);
+                }
+            } catch (e) {
+                playBeep(200, 300);
+                showNotification("Format QR salah.", "bg-red-500");
+            }
+        }
+
+        function processAbsensi(student) {
+            const now = new Date();
+            const timeStr = now.toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit' });
+            const dateStr = now.toLocaleDateString('id-ID', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' });
+            
+            const [limitH, limitM] = config.limitTime.split(':').map(Number);
+            const isLate = (now.getHours() > limitH || (now.getHours() === limitH && now.getMinutes() > limitM));
+
+            const newLog = {
+                id: student.id || 'Manual',
+                name: student.name,
+                teacher: student.teacher || '-',
+                major: student.major || '-',
+                timestamp: `${dateStr}, ${timeStr}`,
+                status: isLate ? 'Terlambat' : 'Tepat Waktu'
+            };
+
+            saveLog(newLog);
+
+            if (isLate) speak("Maaf, Anda terlambat");
+            else speak("Terima kasih, absen berhasil");
+
+            const resultDiv = document.getElementById('scan-result');
+            resultDiv.classList.remove('hidden');
+            document.getElementById('student-name').innerText = student.name;
+            document.getElementById('student-info').innerText = `NIS: ${student.id}`;
+            document.getElementById('student-teacher-info').innerText = `Wali: ${student.teacher} | ${student.major}`;
+            document.getElementById('timestamp').innerText = timeStr;
+
+            const badge = document.getElementById('status-badge');
+            badge.innerText = isLate ? 'TERLAMBAT' : 'TEPAT WAKTU';
+            badge.className = `px-3 py-1 rounded-full text-xs font-bold ${isLate ? 'bg-red-100 text-red-600' : 'bg-green-100 text-green-600'}`;
+        }
+
+        // Fitur Input Manual (Sakit, Izin, Alfa)
+        function openManualInput() {
+            document.getElementById('modal-manual').classList.remove('hidden');
+        }
+
+        function closeManualInput() {
+            document.getElementById('modal-manual').classList.add('hidden');
+        }
+
+        function submitManualInput() {
+            const name = document.getElementById('man-name').value;
+            const teacher = document.getElementById('man-teacher').value;
+            const status = document.getElementById('man-status').value;
+
+            if(!name || !teacher) {
+                showNotification("Isi nama dan wali kelas!", "bg-red-500");
+                return;
+            }
+
+            const now = new Date();
+            const dateStr = now.toLocaleDateString('id-ID', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' });
+            const timeStr = now.toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit' });
+
+            const newLog = {
+                id: 'MANUAL',
+                name: name,
+                teacher: teacher,
+                major: '-',
+                timestamp: `${dateStr}, ${timeStr}`,
+                status: status
+            };
+
+            saveLog(newLog);
+            closeManualInput();
+            showNotification(`Berhasil input ${status}`, "bg-blue-600");
+            
+            // Reset form
+            document.getElementById('man-name').value = '';
+            document.getElementById('man-teacher').value = '';
+        }
+
+        function saveLog(log) {
+            logs.unshift(log);
+            localStorage.setItem('absensi_logs_v4', JSON.stringify(logs));
+            updateAdminStats();
+            renderLogs();
+        }
+
+        function deleteLog(index) {
+            if(confirm("Hapus baris ini?")) {
+                logs.splice(index, 1);
+                localStorage.setItem('absensi_logs_v4', JSON.stringify(logs));
+                updateAdminStats();
+                renderLogs();
+            }
+        }
+
+        function updateAdminStats() {
+            document.getElementById('stat-total').innerText = logs.length;
+            document.getElementById('stat-ontime').innerText = logs.filter(l => l.status === 'Tepat Waktu').length;
+            document.getElementById('stat-late').innerText = logs.filter(l => l.status === 'Terlambat').length;
+            document.getElementById('stat-sick').innerText = logs.filter(l => l.status === 'Sakit').length;
+            document.getElementById('stat-perm').innerText = logs.filter(l => l.status === 'Izin').length;
+            document.getElementById('stat-alfa').innerText = logs.filter(l => l.status === 'Alfa').length;
+        }
+
+        function renderLogs() {
+            const tbody = document.getElementById('log-table');
+            tbody.innerHTML = logs.map((log, index) => {
+                let statusColor = 'text-green-600';
+                if(log.status === 'Terlambat' || log.status === 'Alfa') statusColor = 'text-red-600';
+                if(log.status === 'Sakit') statusColor = 'text-yellow-600';
+                if(log.status === 'Izin') statusColor = 'text-purple-600';
+
+                return `
+                <tr class="border-b text-xs">
+                    <td class="px-6 py-3">${log.timestamp}</td>
+                    <td class="px-6 py-3 font-bold">${log.name}</td>
+                    <td class="px-6 py-3">${log.teacher}</td>
+                    <td class="px-6 py-3 font-bold ${statusColor}">${log.status}</td>
+                    <td class="px-6 py-3">
+                        <button onclick="deleteLog(${index})" class="text-red-400 hover:text-red-600">Hapus</button>
+                    </td>
+                </tr>
+            `}).join('');
+        }
+
+        function generateWARecap() {
+            const section = document.getElementById('wa-recap-section');
+            const container = document.getElementById('wa-buttons-container');
+            section.classList.toggle('hidden');
+            container.innerHTML = '';
+            const teachers = [...new Set(logs.map(log => log.teacher))];
+            teachers.forEach(teacher => {
+                const btn = document.createElement('button');
+                btn.className = "px-4 py-2 bg-white border border-blue-400 text-blue-700 rounded-lg text-xs font-bold hover:bg-blue-600 hover:text-white transition";
+                btn.innerText = `Kirim: ${teacher}`;
+                btn.onclick = () => sendToWhatsApp(teacher);
+                container.appendChild(btn);
+            });
+        }
+
+        function sendToWhatsApp(teacherName) {
+            const studentLogs = logs.filter(l => l.teacher === teacherName);
+            const late = studentLogs.filter(l => l.status === 'Terlambat');
+            const onTime = studentLogs.filter(l => l.status === 'Tepat Waktu');
+            const sick = studentLogs.filter(l => l.status === 'Sakit');
+            const perm = studentLogs.filter(l => l.status === 'Izin');
+            const alfa = studentLogs.filter(l => l.status === 'Alfa');
+
+            let msg = `*REKAP ABSENSI SMK IBU KARTINI SEMARANG*\n`;
+            msg += `Wali Kelas: ${teacherName}\n\n`;
+            
+            if(onTime.length > 0) {
+                msg += `✅ *Hadir (${onTime.length}):*\n`;
+                onTime.forEach((s, i) => msg += `${i+1}. ${s.name}\n`);
+                msg += `\n`;
+            }
+            if(late.length > 0) {
+                msg += `⏰ *Terlambat (${late.length}):*\n`;
+                late.forEach((s, i) => msg += `${i+1}. ${s.name}\n`);
+                msg += `\n`;
+            }
+            if(sick.length > 0) {
+                msg += `🤒 *Sakit (${sick.length}):*\n`;
+                sick.forEach((s, i) => msg += `${i+1}. ${s.name}\n`);
+                msg += `\n`;
+            }
+            if(perm.length > 0) {
+                msg += `📩 *Izin (${perm.length}):*\n`;
+                perm.forEach((s, i) => msg += `${i+1}. ${s.name}\n`);
+                msg += `\n`;
+            }
+            if(alfa.length > 0) {
+                msg += `❌ *Alfa (${alfa.length}):*\n`;
+                alfa.forEach((s, i) => msg += `${i+1}. ${s.name}\n`);
+            }
+            
+            window.open(`https://wa.me/?text=${encodeURIComponent(msg)}`, '_blank');
+        }
+
+        function initSettingsForm() {
+            document.getElementById('set-limit-time').value = config.limitTime;
+            const container = document.getElementById('days-container');
+            container.innerHTML = dayNames.map((day, idx) => `
+                <label class="flex items-center p-3 border rounded-lg cursor-pointer">
+                    <input type="checkbox" value="${idx}" class="day-check" ${config.workingDays.includes(idx) ? 'checked' : ''}>
+                    <span class="ml-2 text-sm">${day}</span>
+                </label>
+            `).join('');
+        }
+
+        function saveSettings() {
+            const time = document.getElementById('set-limit-time').value;
+            const checkedDays = Array.from(document.querySelectorAll('.day-check:checked')).map(el => parseInt(el.value));
+            config = { limitTime: time, workingDays: checkedDays };
+            localStorage.setItem('absensi_config_v4', JSON.stringify(config));
+            showNotification("Disimpan!", "bg-blue-600");
+        }
+
+        function updateDayInfo() {
+            const today = new Date().getDay();
+            document.getElementById('current-day-info').innerText = config.workingDays.includes(today) ? "Sistem Aktif" : "Hari Libur";
+        }
+
+        function clearLogs() {
+            if (confirm('Hapus semua data?')) {
+                logs = [];
+                localStorage.removeItem('absensi_logs_v4');
+                updateAdminStats();
+                renderLogs();
+            }
+        }
+
+        function generateQR() {
+            const name = document.getElementById('gen-name').value;
+            const teacher = document.getElementById('gen-teacher').value;
+            const major = document.getElementById('gen-major').value;
+            const id = document.getElementById('gen-id').value;
+            if (!name || !id) return;
+            const qrContainer = document.getElementById('qrcode');
+            qrContainer.innerHTML = '';
+            new QRCode(qrContainer, { text: JSON.stringify({ id, name, teacher, major }), width: 180, height: 180 });
+            document.getElementById('qr-result').classList.remove('hidden');
+            document.getElementById('qr-display-name').innerText = name;
+            document.getElementById('qr-display-teacher-major').innerText = `${teacher} | ${major}`;
+        }
+
+        function showNotification(msg, colorClass) {
+            const el = document.getElementById('notification');
+            el.innerText = msg;
+            el.className = `fixed bottom-10 left-1/2 -translate-x-1/2 px-6 py-3 rounded-full text-white font-bold shadow-2xl transition-all duration-300 opacity-100 translate-y-0 ${colorClass} z-[100]`;
+            setTimeout(() => el.classList.add('opacity-0', 'translate-y-4'), 3000);
+        }
+
+        function exportToExcel() {
+            const ws = XLSX.utils.json_to_sheet(logs);
+            const wb = XLSX.utils.book_new();
+            XLSX.utils.book_append_sheet(wb, ws, "Laporan");
+            XLSX.writeFile(wb, `Absensi_SMK_IK_Full.xlsx`);
+        }
+    </script>
+</body>
+</html>
